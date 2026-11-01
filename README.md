@@ -1,77 +1,45 @@
-Slipstream Deployment Bot
-A small Python Discord bot that triggers the existing GitHub Actions deployment workflow for:
-- Surge: https://slipstream-fr.surge.sh
-- Vercel: https://slipstream-fr.vercel.app (change this in .env if your Vercel domain differs)
-- Cloudflare Pages: https://slipstream-fr.pages.dev
-Target repository: https://github.com/akilesh-boddu/slipstream-fr
-What it does
-- /cmds setup channel:#channel — choose the Discord channel for announcements.
-- /cmds deploy — manually trigger the GitHub Actions workflow.
-- /cmds status — show the latest workflow run.
-- /cmds pause — pause hourly triggers.
-- /cmds resume — resume hourly triggers.
-- Triggers the workflow every 60 minutes while the bot process is running.
-The bot does not build or host the site itself. It calls the repository's existing
-.github/workflows/deploy-sites.yml workflow using GitHub's workflow-dispatch API.
-That workflow must already be configured with its Surge, Vercel, and Cloudflare
-Actions secrets. The permanent domains must also be configured in those hosting
-projects. The bot cannot create or guarantee provider domains simply by posting URLs.
-Requirements
-- Python 3.10 or newer.
-- A Discord application and bot.
-- A GitHub token with Actions: read and write permission for
-  akilesh-boddu/slipstream-fr.
-- The repository's existing deployment workflow enabled.
-- An always-on Python host or computer. If the process stops, hourly scheduling stops.
-Install
+# Slipstream Link Generator
+
+An authenticated web app that builds the Slipstream site once, then deploys the same build to Surge, Vercel, and Cloudflare Pages in parallel.
+
+## What it does
+- Shallow-clones [slipstream-fr](https://github.com/akilesh-boddu/slipstream-fr).
+- Runs `npm ci`, `npm test`, and `npm run build` once.
+- Deploys the resulting `dist/` to three providers concurrently.
+- Applies timeouts and shows each provider's result independently.
+- Keeps local deployment history in `.deployments/`.
+
+## Configure
+Copy `.env.example` to `.env` and fill in your credentials. Never commit `.env` or share tokens.
+
+Required:
+- `ADMIN_PASSWORD`
+- `SURGE_TOKEN`
+- `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`
+- `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`
+
+Optional: `CLOUDFLARE_PROJECT`, `PUBLIC_API_URL`, `WISP_URL`, `BUILD_TIMEOUT_SECONDS`, `DEPLOY_TIMEOUT_SECONDS`, `PORT`.
+
+## Run in Codespaces
+Requires Python 3.10+, Git, Node.js 22+, and npm.
+
+```bash
 python -m venv .venv
-Activate the virtual environment:
-
-Windows:
-.venv\Scripts\activate
-macOS/Linux:
 source .venv/bin/activate
-Install dependencies:
 pip install -r requirements.txt
-Configure .env
-Open .env and replace:
-- DISCORD_TOKEN with your bot token.
-- GITHUB_TOKEN with a fine-grained GitHub token restricted to this repository,
-  granting Actions read/write access.
-Do not paste tokens into Discord, screenshots, chat, or GitHub. Do not commit .env.
-If a token is exposed, revoke it and create a replacement.
+cp .env.example .env
+# Edit .env with your private credentials, then:
+uvicorn main:app --host 0.0.0.0 --port 8000
+```
 
-Check VERCEL_URL against the actual production domain in your Vercel project.
-The example is only a default; it is not proof that the domain has been claimed.
-Discord setup
-1. In the Discord Developer Portal, create an application and add a bot.
-2. Invite it to your server with the bot and applications.commands scopes.
-3. Give it permission to View Channels, Send Messages, and Embed Links in the
-   announcement channel.
-4. Start the bot:
-python bot.py
-5. In your server, run /cmds setup and select the announcement channel.
-6. Run /cmds deploy to test the workflow.
-7. Use /cmds status to inspect the latest GitHub Actions run.
-Slash commands are synced globally and may take a little while to appear.
+Open port 8000, enter the admin password, and click **Make URLs**.
 
-Only server members with Manage Server or Administrator permission can
-run the configuration and deployment commands.
-Important deployment notes
-- The workflow filename defaults to deploy-sites.yml, branch main.
-- The GitHub Actions workflow must contain a workflow_dispatch trigger.
-- Add the provider credentials as GitHub repository Actions secrets, not to this
-  bot's .env.
-- Surge and Cloudflare Pages serve static files. The source project's Node backend
-  must remain hosted separately for backend-dependent features.
-- The bot posts the stable domain addresses after triggering a run. A trigger is
-  not the same as a successful build; use /cmds status and the GitHub Actions
-  run link to verify completion.
-- Hourly deployment triggers are not the same as checking for source changes:
-  this bot intentionally triggers a fresh workflow every hour.
-Four-file project
-This project contains only:
-- bot.py
-- .env
-- requirements.txt
-- README.md
+Windows PowerShell activation: `.venv\\Scripts\\Activate.ps1`.
+
+## Provider details
+- Surge gets a new `slip-...` subdomain each run.
+- Vercel creates a unique preview deployment in the configured existing project.
+- Cloudflare Pages uses a unique preview branch in the configured Pages project (created if missing).
+- Provider quotas and account permissions still apply; URLs are only shown for successful deployments.
+- Codespaces is for testing, not permanent public hosting. A public generator needs an always-on host with the same environment variables and authentication.
+- Slipstream AI/Wisp features still depend on the separate backend configured by `PUBLIC_API_URL` and `WISP_URL`.
