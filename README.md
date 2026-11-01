@@ -27,8 +27,8 @@ Requires Python 3.10+, Git, Node.js 22+, and npm.
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env
-# Edit .env with your private credentials, then:
+nano .env
+# Add the variables listed below with your private credentials, then:
 uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
