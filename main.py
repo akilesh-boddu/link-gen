@@ -74,10 +74,20 @@ def deploy_vercel(dist, name, env):
     work = dist.parent
     run(["npx", "--yes", "vercel", "link", "--yes", "--project", project, "--scope", scope, "--token", token],
         work, DEPLOY_TIMEOUT, env)
-    run(["npx", "--yes", "vercel", "build", "--token", token], work, DEPLOY_TIMEOUT, env)
-    output = run(["npx", "--yes", "vercel", "deploy", "--prebuilt", "--yes", "--token", token],
-                 work, DEPLOY_TIMEOUT, env)
-    urls = re.findall(r"https://[A-Za-z0-9._-]+\\.vercel\\.app", output)
+    # Pull the linked project's preview settings before creating the Build Output API bundle.
+    run(["npx", "--yes", "vercel", "pull", "--yes", "--environment=preview",
+         "--scope", scope, "--token", token], work, DEPLOY_TIMEOUT, env)
+    vercel_dir = work / ".vercel"
+    output_dir = vercel_dir / "output"
+    if output_dir.exists():
+        shutil.rmtree(output_dir)
+    run(["npx", "--yes", "vercel", "build", "--yes", "--token", token],
+        work, DEPLOY_TIMEOUT, env)
+    if not (output_dir / "config.json").is_file():
+        raise RuntimeError("Vercel build did not create .vercel/output/config.json. Check the linked Vercel project's Build & Development Settings and Root Directory.")
+    output = run(["npx", "--yes", "vercel", "deploy", "--prebuilt", "--yes",
+                  "--scope", scope, "--token", token], work, DEPLOY_TIMEOUT, env)
+    urls = re.findall(r"https://[A-Za-z0-9._-]+\.vercel\.app", output)
     if not urls:
         raise RuntimeError("Vercel completed but did not return a deployment URL. Output: " + output[-1200:])
     return {"provider": "Vercel", "url": urls[-1], "log": output[-800:]}
@@ -96,7 +106,7 @@ def deploy_cloudflare(dist, name, env):
             dist.parent, 120, env)
     output = run(["npx", "--yes", "wrangler", "pages", "deploy", str(dist),
                   "--project-name", project, "--branch", name], dist.parent, DEPLOY_TIMEOUT, env)
-    urls = re.findall(r"https://[A-Za-z0-9._-]+\\.pages\\.dev", output)
+    urls = re.findall(r"https://[A-Za-z0-9._-]+\.pages\.dev", output)
     url = urls[-1] if urls else "https://" + name + "." + project + ".pages.dev"
     return {"provider": "Cloudflare Pages", "url": url, "log": output[-800:]}
 
