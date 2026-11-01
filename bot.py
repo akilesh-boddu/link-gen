@@ -11,6 +11,51 @@ from discord import app_commands
 from discord.ext import commands, tasks
 from dotenv import load_dotenv, set_key
 
+
+async def handle_health_request(reader, writer):
+    try:
+        request_line = await asyncio.wait_for(reader.readline(), timeout=5)
+        while True:
+            header = await asyncio.wait_for(reader.readline(), timeout=5)
+            if header in (b"\r\n", b"\n", b""):
+                break
+
+        parts = request_line.decode("latin-1").strip().split()
+        path = parts[1].split("?", 1)[0] if len(parts) >= 2 else ""
+
+        status = "200 OK" if path in ("/", "/healthz") else "404 Not Found"
+        body = b"ok\n" if status == "200 OK" else b"not found\n"
+
+        response = (
+            f"HTTP/1.1 {status}\r\n"
+            "Content-Type: text/plain\r\n"
+            f"Content-Length: {len(body)}\r\n"
+            "Connection: close\r\n\r\n"
+        ).encode() + body
+
+        writer.write(response)
+        await writer.drain()
+    except (asyncio.TimeoutError, ValueError, ConnectionError):
+        pass
+    finally:
+        writer.close()
+        try:
+            await writer.wait_closed()
+        except ConnectionError:
+            pass
+
+
+async def start_health_server():
+    port = int(os.getenv("PORT", "10000"))
+    await asyncio.start_server(
+        handle_health_request,
+        "0.0.0.0",
+        port
+    )
+    log.info("Render health server listening on port %s", port)
+
+
+
 load_dotenv()
 
 logging.basicConfig(
@@ -281,4 +326,10 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
         await interaction.response.send_message(message, ephemeral=True)
 
 
-bot.run(DISCORD_TOKEN)
+async def main():
+    await start_health_server()
+    await bot.start(DISCORD_TOKEN)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
